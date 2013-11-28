@@ -19,3 +19,8 @@ decrypt
 # output file
 *.txt
 *.csv
+
+# codeblocks
+decrypt.cbp
+decrypt.cscope_file_list
+
