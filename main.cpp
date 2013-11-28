@@ -66,25 +66,25 @@ void writeOutput()
     output.close();
 }
 
-bool cryptAndTest(string salt, string encrypted, string plainText)
+bool cryptAndTest(string inFile, string plainText)
 {
-    string c = string(crypt(plainText.c_str(), salt.c_str()));
-    if (c.compare(encrypted)) return true;
-    return false;
+    string salt = inFile.substr(0, 2);
+    string expected(crypt(plainText.c_str(), salt.c_str()));
+    //printf("Salt: %s, Plain: %s, Crypt: %s\n", salt.c_str(), plainText.c_str(), expected.c_str());
+    return expected == inFile;
 }
 
 void crack()
 {
+    #pragma omp parallel for schedule(static) shared(dict,toCrack,cracked)
     for (unsigned int i=0; i<toCrack.size(); i++)
     {
         Password p = toCrack[i];
-        string salt = p.password.substr(0, 2);
-        string encryptedPW = p.password.substr(2, p.password.size()-1);
 
         string plaintext("");
         for (string word : dict)
         {
-            if (cryptAndTest(salt, encryptedPW, word))
+            if (cryptAndTest(p.password, word))
             {
                 plaintext = word;
                 break;
@@ -92,7 +92,7 @@ void crack()
             for (int j=48; j<58; j++)
             {
                 string wordJ = word + (char) j;
-                if (cryptAndTest(salt, encryptedPW, wordJ))
+                if (cryptAndTest(p.password, wordJ))
                 {
                     plaintext = wordJ;
                     break;
@@ -102,11 +102,13 @@ void crack()
 
         if (plaintext.empty())
         {
+            #pragma omp critical(console)
             printf("Password for %s could not be cracked\n", p.user.c_str());
         }
         else
         {
             p.password = plaintext;
+            #pragma omp critical(cracked)
             cracked.push_back(p);
         }
     }
