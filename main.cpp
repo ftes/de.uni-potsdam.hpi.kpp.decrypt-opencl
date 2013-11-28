@@ -6,6 +6,7 @@
 #include <sstream>
 #include <vector>
 #include <omp.h>
+#include <crypt.h>
 
 using namespace std;
 
@@ -67,8 +68,9 @@ void writeOutput()
 
 bool cryptAndTest(string salt, string encrypted, string plainText)
 {
-    //cout << plainText << "\n";
-    return true;
+    string c = string(crypt(plainText.c_str(), salt.c_str()));
+    if (c.compare(encrypted)) return true;
+    return false;
 }
 
 void crack()
