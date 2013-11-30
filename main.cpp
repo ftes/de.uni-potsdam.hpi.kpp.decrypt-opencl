@@ -5,7 +5,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
-#include <omp.h>
+//#include <omp.h>
 #include <crypt.h>
 
 using namespace std;
@@ -78,7 +78,7 @@ bool cryptAndTest(string inFile, string plainText)
 {
     string salt = inFile.substr(0, 2);
     string expected;
-    #pragma omp critical(crypt)
+    //#pragma omp critical(crypt)
     expected = crypt(plainText.c_str(), salt.c_str());
     //printf("Salt: %s, Plain: %s, Crypt: %s\n", salt.c_str(), plainText.c_str(), expected.c_str());
     return expected == inFile;
@@ -135,7 +135,7 @@ void crack()
         Password p = toCrack[i];
         string plaintext("");
 
-        #pragma omp parallel for schedule(static, 100)
+        //#pragma omp parallel for schedule(static, 100)
         for (unsigned int j=0; j<dict.size(); j++)
         {
             if (! plaintext.empty()) continue;
@@ -170,9 +170,9 @@ int main(int argc, char* argv[])
     dict = parse(dictFile);
     toCrack = parsePasswords(pwFile);
 
-    double start = omp_get_wtime();
+    //double start = omp_get_wtime();
     crack();
-    printf("Runtime: %f\n", omp_get_wtime() - start);
+    //printf("Runtime: %f\n", omp_get_wtime() - start);
 
     writeOutput();
 

@@ -1,7 +1,7 @@
 CC=g++
-CFLAGS=-c -Wall -std=c++11 -fopenmp -Ofast
+CFLAGS=-c -Wall -std=c++11 -Ofast
 #lcrypt flag needs to be close to end (after objects) in command
-LDFLAGS=-fopenmp -lcrypt
+LDFLAGS=-lcrypt
 SOURCES=main.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=decrypt
