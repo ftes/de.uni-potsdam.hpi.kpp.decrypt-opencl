@@ -29,6 +29,8 @@ vector<string> parse(string fileName)
     string line;
     while (getline(file, line))
     {
+        if (line[line.size() - 1] == '\r')
+            line.resize(line.size() - 1);
         result.push_back(line);
     }
     file.close();
@@ -45,7 +47,10 @@ vector<Password> parsePasswords(string fileName)
         Password *p = new Password;
         int i = line.find(":");
         p->user = line.substr(0, i);
-        p->password = line.substr(i+1, line.length()-1);
+        string password = line.substr(i+1, line.length()-1);
+        if (password[password.size() - 1] == '\r')
+            password.resize(password.size() - 1);
+        p->password = password;
         result.push_back(*p);
     }
     file.close();
