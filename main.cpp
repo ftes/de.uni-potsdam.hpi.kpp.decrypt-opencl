@@ -133,7 +133,7 @@ void crack()
     for (unsigned int i=0; i<toCrack.size(); i++)
     {
         Password p = toCrack[i];
-        //crypt_data data;
+        crypt_data data;
         string plaintext("");
 
         //#pragma omp parallel for schedule(static, 100)
@@ -141,8 +141,8 @@ void crack()
         {
             string word = dict[j];
             if (! plaintext.empty()) continue;
-            //plaintext = testWordCryptR(word, p, &data);
-            plaintext = testWordCrypt(word, p);
+            plaintext = testWordCryptR(word, p, &data);
+            //plaintext = testWordCrypt(word, p);
             //if (plaintext != NULL) break;
         }
 
