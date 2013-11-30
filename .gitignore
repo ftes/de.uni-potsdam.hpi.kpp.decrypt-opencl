@@ -19,6 +19,7 @@ decrypt
 # output file
 *.txt
 *.csv
+*.out
 
 # codeblocks
 decrypt.cbp

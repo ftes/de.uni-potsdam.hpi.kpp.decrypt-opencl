@@ -66,38 +66,84 @@ void writeOutput()
     output.close();
 }
 
-bool cryptAndTest(string inFile, string plainText)
+bool cryptAndTestR(string inFile, string plainText, crypt_data *data)
 {
     string salt = inFile.substr(0, 2);
-    string expected(crypt(plainText.c_str(), salt.c_str()));
+    string expected(crypt_r(plainText.c_str(), salt.c_str(), data));
     //printf("Salt: %s, Plain: %s, Crypt: %s\n", salt.c_str(), plainText.c_str(), expected.c_str());
     return expected == inFile;
 }
 
+bool cryptAndTest(string inFile, string plainText)
+{
+    string salt = inFile.substr(0, 2);
+    string expected;
+    #pragma omp critical(crypt)
+    expected = crypt(plainText.c_str(), salt.c_str());
+    //printf("Salt: %s, Plain: %s, Crypt: %s\n", salt.c_str(), plainText.c_str(), expected.c_str());
+    return expected == inFile;
+}
+
+string testWordCryptR(string word, Password p, crypt_data *data)
+{
+    data->initialized = 0;
+
+    if (cryptAndTestR(p.password, word, data))
+    {
+        return word;
+    }
+    for (int j=48; j<58; j++)
+    {
+        data->initialized = 0;
+        string wordJ(word + (char) j);
+        if (cryptAndTestR(p.password, wordJ, data))
+        {
+            return wordJ;
+        }
+    }
+    return "";
+}
+
+string testWordCryptR(string word, Password p)
+{
+    testWordCryptR(word, p, new crypt_data);
+}
+
+string testWordCrypt(string word, Password p)
+{
+    if (cryptAndTest(p.password, word))
+    {
+        return word;
+    }
+    for (int j=48; j<58; j++)
+    {
+        string wordJ(word + (char) j);
+        if (cryptAndTest(p.password, wordJ))
+        {
+            return wordJ;
+        }
+    }
+    return "";
+}
+
 void crack()
 {
-    #pragma omp parallel for schedule(static) shared(dict,toCrack,cracked)
+    //this is slow -> god knows why, false sharing should not be an issue as we only read arrays
+    //#pragma omp parallel for schedule(dynamic)
     for (unsigned int i=0; i<toCrack.size(); i++)
     {
         Password p = toCrack[i];
-
+        //crypt_data data;
         string plaintext("");
-        for (string word : dict)
+
+        //#pragma omp parallel for schedule(static, 100)
+        for (unsigned int j=0; j<dict.size(); j++)
         {
-            if (cryptAndTest(p.password, word))
-            {
-                plaintext = word;
-                break;
-            }
-            for (int j=48; j<58; j++)
-            {
-                string wordJ = word + (char) j;
-                if (cryptAndTest(p.password, wordJ))
-                {
-                    plaintext = wordJ;
-                    break;
-                }
-            }
+            string word = dict[j];
+            if (! plaintext.empty()) continue;
+            //plaintext = testWordCryptR(word, p, &data);
+            plaintext = testWordCrypt(word, p);
+            //if (plaintext != NULL) break;
         }
 
         if (plaintext.empty())
@@ -107,9 +153,11 @@ void crack()
         }
         else
         {
-            p.password = plaintext;
+            Password newP;
+            newP.user = p.user;
+            newP.password = plaintext;
             #pragma omp critical(cracked)
-            cracked.push_back(p);
+            cracked.push_back(newP);
         }
     }
 }
