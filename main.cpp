@@ -129,18 +129,18 @@ string testWordCrypt(string word, Password p)
 void crack()
 {
     //this is slow -> god knows why, false sharing should not be an issue as we only read arrays
-    #pragma omp parallel for schedule(dynamic)
+    //#pragma omp parallel for schedule(dynamic)
     for (unsigned int i=0; i<toCrack.size(); i++)
     {
         Password p = toCrack[i];
-        crypt_data data;
         string plaintext("");
 
-        //#pragma omp parallel for schedule(static, 100)
+        #pragma omp parallel for schedule(static, 100)
         for (unsigned int j=0; j<dict.size(); j++)
         {
-            string word = dict[j];
             if (! plaintext.empty()) continue;
+            string word = dict[j];
+            crypt_data data;
             plaintext = testWordCryptR(word, p, &data);
             //plaintext = testWordCrypt(word, p);
             //if (plaintext != NULL) break;
@@ -148,7 +148,7 @@ void crack()
 
         if (plaintext.empty())
         {
-            #pragma omp critical(console)
+            //#pragma omp critical(console)
             printf("Password for %s could not be cracked\n", p.user.c_str());
         }
         else
@@ -156,7 +156,7 @@ void crack()
             Password newP;
             newP.user = p.user;
             newP.password = plaintext;
-            #pragma omp critical(cracked)
+            //#pragma omp critical(cracked)
             cracked.push_back(newP);
         }
     }
