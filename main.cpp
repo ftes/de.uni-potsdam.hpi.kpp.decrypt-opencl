@@ -129,7 +129,7 @@ string testWordCrypt(string word, Password p)
 void crack()
 {
     //this is slow -> god knows why, false sharing should not be an issue as we only read arrays
-    //#pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic)
     for (unsigned int i=0; i<toCrack.size(); i++)
     {
         Password p = toCrack[i];
