@@ -83,6 +83,7 @@ bool cryptAndTest(string inFile, string plainText)
 {
     string salt = inFile.substr(0, 2);
     string expected;
+    //crypt is not threadsafe, but crypt_r is very slow
     #pragma omp critical(crypt)
     expected = crypt(plainText.c_str(), salt.c_str());
     //printf("Salt: %s, Plain: %s, Crypt: %s\n", salt.c_str(), plainText.c_str(), expected.c_str());
@@ -133,39 +134,30 @@ string testWordCrypt(string word, Password p)
 
 void crack()
 {
-    //this is slow -> god knows why, false sharing should not be an issue as we only read arrays
-    omp_set_num_threads(2);
-    #pragma omp parallel for schedule(dynamic)
+    //this is really slow -> god knows why, false sharing should not be an issue as we only read the arrays but for one
+    //to that we write very seldomly
+    //#pragma omp parallel for schedule(dynamic)
     for (unsigned int i=0; i<toCrack.size(); i++)
     {
-        Password p = toCrack[i];
-        #pragma omp critical(console)
-        cout << "Starting work on " << p.user << "\n";
-        string plaintext("");
+        string plaintext = "";
+        bool found = false;
 
-        //#pragma omp parallel for schedule(static, 100)
+        //this is also slower than without omp...
+        #pragma omp parallel for
         for (unsigned int j=0; j<dict.size(); j++)
         {
-            if (! plaintext.empty()) break;
-            string word = dict[j];
-            //crypt_data data;
-            //plaintext = testWordCryptR(word, p, &data);
-            plaintext = testWordCrypt(word, p);
-            //if (plaintext != NULL) break;
-        }
-
-        if (plaintext.empty())
-        {
-            //#pragma omp critical(console)
-            //printf("Password for %s could not be cracked\n", p.user.c_str());
-        }
-        else
-        {
-            Password newP;
-            newP.user = p.user;
-            newP.password = plaintext;
-            #pragma omp critical(cracked)
-            cracked.push_back(newP);
+            if (found) continue;
+            plaintext = testWordCrypt(dict[j], toCrack[i]);
+            if (!plaintext.empty())
+            {
+                #pragma omp atomic write
+                found = true;
+                Password newP;
+                newP.user = toCrack[i].user;
+                newP.password = plaintext;
+                #pragma omp critical(cracked)
+                cracked.push_back(newP);
+            }
         }
     }
 }
