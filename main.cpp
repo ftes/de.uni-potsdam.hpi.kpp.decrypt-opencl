@@ -140,9 +140,9 @@ void crack()
         {
             if (! plaintext.empty()) continue;
             string word = dict[j];
-            crypt_data data;
-            plaintext = testWordCryptR(word, p, &data);
-            //plaintext = testWordCrypt(word, p);
+            //crypt_data data;
+            //plaintext = testWordCryptR(word, p, &data);
+            plaintext = testWordCrypt(word, p);
             //if (plaintext != NULL) break;
         }
 
