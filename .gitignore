@@ -21,6 +21,7 @@ decrypt
 *.csv
 *.out
 
+!taskCryptSolution.txt
 # codeblocks
 decrypt.cbp
 decrypt.cscope_file_list

@@ -65,7 +65,7 @@ void writeOutput()
     for (unsigned int i=0; i<cracked.size(); i++)
     {
         Password p = cracked[i];
-        cout << p.user << ";" << p.password << "\n";
+        output << p.user << ";" << p.password << "\n";
     }
 
     output.close();
@@ -143,7 +143,7 @@ void crack()
         //#pragma omp parallel for schedule(static, 100)
         for (unsigned int j=0; j<dict.size(); j++)
         {
-            if (! plaintext.empty()) continue;
+            if (! plaintext.empty()) break;
             string word = dict[j];
             //crypt_data data;
             //plaintext = testWordCryptR(word, p, &data);
@@ -154,7 +154,7 @@ void crack()
         if (plaintext.empty())
         {
             //#pragma omp critical(console)
-            printf("Password for %s could not be cracked\n", p.user.c_str());
+            //printf("Password for %s could not be cracked\n", p.user.c_str());
         }
         else
         {
