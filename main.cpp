@@ -5,7 +5,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
-//#include <omp.h>
+#include <omp.h>
 #include <crypt.h>
 
 using namespace std;
@@ -83,7 +83,7 @@ bool cryptAndTest(string inFile, string plainText)
 {
     string salt = inFile.substr(0, 2);
     string expected;
-    //#pragma omp critical(crypt)
+    #pragma omp critical(crypt)
     expected = crypt(plainText.c_str(), salt.c_str());
     //printf("Salt: %s, Plain: %s, Crypt: %s\n", salt.c_str(), plainText.c_str(), expected.c_str());
     return expected == inFile;
@@ -134,10 +134,13 @@ string testWordCrypt(string word, Password p)
 void crack()
 {
     //this is slow -> god knows why, false sharing should not be an issue as we only read arrays
-    //#pragma omp parallel for schedule(dynamic)
+    omp_set_num_threads(2);
+    #pragma omp parallel for schedule(dynamic)
     for (unsigned int i=0; i<toCrack.size(); i++)
     {
         Password p = toCrack[i];
+        #pragma omp critical(console)
+        cout << "Starting work on " << p.user << "\n";
         string plaintext("");
 
         //#pragma omp parallel for schedule(static, 100)
@@ -161,7 +164,7 @@ void crack()
             Password newP;
             newP.user = p.user;
             newP.password = plaintext;
-            //#pragma omp critical(cracked)
+            #pragma omp critical(cracked)
             cracked.push_back(newP);
         }
     }
@@ -175,9 +178,9 @@ int main(int argc, char* argv[])
     dict = parse(dictFile);
     toCrack = parsePasswords(pwFile);
 
-    //double start = omp_get_wtime();
+    double start = omp_get_wtime();
     crack();
-    //printf("Runtime: %f\n", omp_get_wtime() - start);
+    printf("Runtime: %f\n", omp_get_wtime() - start);
 
     writeOutput();
 
