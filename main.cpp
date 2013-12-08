@@ -16,22 +16,29 @@ struct Password
     string password;
 };
 
+const unsigned int NUMBER_OF_CHARS_CRYPT = 8;
+
 vector<string> dict;
 vector<Password> toCrack;
 vector<Password> cracked;
 
 string outFile = "output.txt";
 
-vector<string> parse(string fileName)
+vector<string> parseDict(string fileName)
 {
     ifstream file(fileName.c_str());
     vector <string> result;
     string line;
+    string lastAcceptedWord = "";
     while (getline(file, line))
     {
         if (line[line.size() - 1] == '\r')
             line.resize(line.size() - 1);
-        result.push_back(line);
+        string cropped = line.substr(0, NUMBER_OF_CHARS_CRYPT);
+        if (cropped != lastAcceptedWord) {
+            lastAcceptedWord = cropped;
+            result.push_back(cropped);
+        }
     }
     file.close();
     return result;
@@ -75,7 +82,6 @@ bool cryptAndTestR(string inFile, string plainText, crypt_data *data)
 {
     string salt = inFile.substr(0, 2);
     string expected(crypt_r(plainText.c_str(), salt.c_str(), data));
-    //printf("Salt: %s, Plain: %s, Crypt: %s\n", salt.c_str(), plainText.c_str(), expected.c_str());
     return expected == inFile;
 }
 
@@ -86,7 +92,6 @@ bool cryptAndTest(string inFile, string plainText)
     //crypt is not threadsafe, but crypt_r is very slow
     #pragma omp critical(crypt)
     expected = crypt(plainText.c_str(), salt.c_str());
-    //printf("Salt: %s, Plain: %s, Crypt: %s\n", salt.c_str(), plainText.c_str(), expected.c_str());
     return expected == inFile;
 }
 
@@ -98,13 +103,15 @@ string testWordCryptR(string word, Password p, crypt_data *data)
     {
         return word;
     }
-    for (int j=48; j<58; j++)
-    {
-        data->initialized = 0;
-        string wordJ(word + (char) j);
-        if (cryptAndTestR(p.password, wordJ, data))
+    if (word.length() < NUMBER_OF_CHARS_CRYPT) {
+        for (int j=48; j<58; j++)
         {
-            return wordJ;
+            data->initialized = 0;
+            string wordJ(word + (char) j);
+            if (cryptAndTestR(p.password, wordJ, data))
+            {
+                return wordJ;
+            }
         }
     }
     return "";
@@ -136,18 +143,20 @@ void crack()
 {
     //this is really slow -> god knows why, false sharing should not be an issue as we only read the arrays but for one
     //to that we write very seldomly
-    //#pragma omp parallel for schedule(dynamic)
+    #pragma omp parallel for schedule(dynamic)
     for (unsigned int i=0; i<toCrack.size(); i++)
     {
         string plaintext = "";
         bool found = false;
+        struct crypt_data data;
+        data.initialized = 0;
 
         //this is also slower than without omp...
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for (unsigned int j=0; j<dict.size(); j++)
         {
             if (found) continue;
-            plaintext = testWordCrypt(dict[j], toCrack[i]);
+            plaintext = testWordCryptR(dict[j], toCrack[i], &data);
             if (!plaintext.empty())
             {
                 #pragma omp atomic write
@@ -167,7 +176,7 @@ int main(int argc, char* argv[])
     string pwFile = string(argv[1]);
     string dictFile = string(argv[2]);
 
-    dict = parse(dictFile);
+    dict = parseDict(dictFile);
     toCrack = parsePasswords(pwFile);
 
     double start = omp_get_wtime();
