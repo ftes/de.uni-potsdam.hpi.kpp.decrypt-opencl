@@ -1,4 +1,5 @@
 CC=g++
+#for debugging output: -DDEBUG
 CFLAGS=-c -Wall -std=c++11 -Ofast -fopenmp
 #lcrypt flag needs to be close to end (after objects) in command
 LDFLAGS=-lcrypt -fopenmp
