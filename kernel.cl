@@ -135,15 +135,15 @@ __constant char e[] = {
 // Set up the key schedule from the key.
 //
 
-void setkey_r(struct sched sp, const char key[]) {
+static void setkey_r(struct sched *sp, const char *key) {
   int i, j, k;
   int t;
 
   // First, generate C and D by permuting the key.  The low order bit of
   // each 8-bit char is not used, so C and D are only 28 bits apiece.
   for (i = 0; i < 28; i++) {
-    sp.C[i] = key[PC1_C[i] - 1];
-    sp.D[i] = key[PC1_D[i] - 1];
+    sp->C[i] = key[PC1_C[i] - 1];
+    sp->D[i] = key[PC1_D[i] - 1];
   }
 
   // To generate Ki, rotate C and D according to schedule and pick up a
@@ -151,22 +151,22 @@ void setkey_r(struct sched sp, const char key[]) {
   for (i = 0; i < 16; i++) {
     // Rotate
     for (k = 0; k < shifts[i]; k++) {
-      t = sp.C[0];
-      for (j = 0; j < 28 - 1; j++) sp.C[j] = sp.C[j + 1];
-      sp.C[27] = t;
-      t = sp.D[0];
-      for (j = 0; j < 28 - 1; j++) sp.D[j] = sp.D[j + 1];
-      sp.D[27] = t;
+      t = sp->C[0];
+      for (j = 0; j < 28 - 1; j++) sp->C[j] = sp->C[j + 1];
+      sp->C[27] = t;
+      t = sp->D[0];
+      for (j = 0; j < 28 - 1; j++) sp->D[j] = sp->D[j + 1];
+      sp->D[27] = t;
     }
 
     // Get Ki (note C and D are concatenated)
     for (j = 0; j < 24; j++) {
-      sp.KS[i][j] = sp.C[PC2_C[j] - 1];
-      sp.KS[i][j + 24] = sp.D[PC2_D[j] - 28 - 1];
+      sp->KS[i][j] = sp->C[PC2_C[j] - 1];
+      sp->KS[i][j + 24] = sp->D[PC2_D[j] - 28 - 1];
     }
   }
 
-  for (i = 0; i < 48; i++) sp.E[i] = e[i];
+  for (i = 0; i < 48; i++) sp->E[i] = e[i];
 }
 
 //
@@ -235,8 +235,7 @@ __constant char P[] = {
 // Encrypt a block
 //
 
-void encrypt_r(struct sched sp, char block[], int edflag) {
-
+static void encrypt_r(struct sched *sp, char *block, int edflag) {
   // The current block, divided into 2 halves.
   char L[64], *R = L + 32;
   char tempL[32];
@@ -264,7 +263,7 @@ void encrypt_r(struct sched sp, char block[], int edflag) {
     for (j = 0; j < 32; j++) tempL[j] = R[j];
 
     // Expand R to 48 bits using the E selector; exclusive-or with the current key bits
-    for (j = 0; j < 48; j++) preS[j] = R[sp.E[j] - 1] ^ sp.KS[i][j];
+    for (j = 0; j < 48; j++) preS[j] = R[sp->E[j] - 1] ^ sp->KS[i][j];
 
     // The pre-select bits are now considered in 8 groups of 6 bits each.
     // The 8 selection functions map these 6-bit quantities into 4-bit
@@ -302,11 +301,7 @@ void encrypt_r(struct sched sp, char block[], int edflag) {
   }
 
   // The final output gets the inverse permutation of the very original.
-  for (j = 0; j < 64; j++) {
-    block[j] = 60;
-    //block[j] = L[FP[j] - 1];
-  }
-
+  for (j = 0; j < 64; j++) block[j] = L[FP[j] - 1];
 }
 
 __kernel void crypt_r(__constant char *key, __constant char *salt, __global char *buf) {
@@ -321,7 +316,7 @@ __kernel void crypt_r(__constant char *key, __constant char *salt, __global char
     i++;
   }
 
-  setkey_r(s, block);
+  setkey_r(&s, block);
 
   for (i = 0; i < 66; i++) block[i] = 0;
 
@@ -340,7 +335,7 @@ __kernel void crypt_r(__constant char *key, __constant char *salt, __global char
     }
   }
 
-  for (i = 0; i < 25; i++) encrypt_r(s, block, 0);
+  for (i = 0; i < 25; i++) encrypt_r(&s, block, 0);
 
   for (i = 0; i < 11; i++) {
     c = 0;
