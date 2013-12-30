@@ -10,8 +10,10 @@ use threadsafe crypt_r instead of crypt
 #include <string>
 #include <sstream>
 #include <vector>
-#include <omp.h>
-#include <crypt.h>
+
+#include "cl.hpp"
+#include "opencl.hpp"
+#include "timing.hpp"
 
 using namespace std;
 
@@ -93,7 +95,7 @@ void writeOutput()
 
     output.close();
 }
-
+/*
 bool cryptAndTestR(string inFile, string salt, string plainText, crypt_data *data)
 {
     string expected(crypt_r(plainText.c_str(), salt.c_str(), data));
@@ -151,11 +153,40 @@ void crack()
             }
         }
     }
-}
+}*/
 
 int main(int argc, char* argv[])
 {
-    string pwFile = string(argv[1]);
+    string salt = "EB";
+    char *saltP = (char*) salt.c_str();
+    string password = "Osten3";
+    char *passwordP = (char*) password.c_str();
+
+    cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_GPU);
+    cl::Context context = getContext(device);
+    cl::Program program = loadProgram(device, context, false);
+    cl::CommandQueue queue(context, device);
+
+    cl::Buffer resultB = cl::Buffer(context, CL_MEM_WRITE_ONLY, sizeof(char)*13);
+
+    cl::Buffer saltB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*salt.length(), saltP);
+    cl::Buffer passwordB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*password.length(), passwordP);
+
+    auto kernel = cl::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer>(program, "crypt_r");
+    cl::EnqueueArgs eargs(queue,cl::NullRange,cl::NDRange(1), cl::NullRange);
+
+    timeval start = startTiming();
+    kernel(eargs, passwordB, saltB, resultB).wait();
+    outputElapsedSec("Kernel", start);
+
+    char result[13];
+    queue.enqueueReadBuffer(resultB, CL_TRUE, 0, sizeof(char)*13, result);
+
+    cout << result << "\n";
+
+    //cout << buffer << "\n";
+
+    /*string pwFile = string(argv[1]);
     string dictFile = string(argv[2]);
 
     dict = parseDict(dictFile);
@@ -173,5 +204,5 @@ int main(int argc, char* argv[])
 
     writeOutput();
 
-    exit(0);
+    exit(0);*/
 }

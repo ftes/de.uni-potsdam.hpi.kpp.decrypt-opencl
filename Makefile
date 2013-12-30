@@ -2,8 +2,8 @@ CC=g++
 #for debugging output: -DDEBUG
 CFLAGS=-c -Wall -std=c++11 -Ofast -fopenmp
 #lcrypt flag needs to be close to end (after objects) in command
-LDFLAGS=-lcrypt -fopenmp
-SOURCES=main.cpp
+LDFLAGS=-lOpenCL
+SOURCES=main.cpp opencl.cpp base64.cpp timing.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=decrypt
 

@@ -26,3 +26,5 @@ decrypt
 decrypt.cbp
 decrypt.cscope_file_list
 
+*.bin
+*.cbp
