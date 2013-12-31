@@ -104,10 +104,14 @@ void writeOutput()
 
 int main(int argc, char* argv[])
 {
+    //a lot slower than openmp version
+    //also, only finds results on CPU, not on GPU (needs too much private work-item memory? // calculation inaccuracies?)
+
 #ifdef DEBUG
     timeval start = startTiming();
 #endif // DEBUG
 
+    //read input
     string pwFile = string(argv[1]);
     string dictFile = string(argv[2]);
 
@@ -116,37 +120,51 @@ int main(int argc, char* argv[])
 
     int lp1 = passwordLen + 1;
 
+    //create large char array with dict words that will be passed to kernel
     char dictC[lp1 * dict.size()];
     for (int i=0; i<dict.size(); i++)
         dict[i].copy(dictC + lp1 * i, passwordLen);
 
+    //setup OpenCL context
     cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_CPU);
     cl::Context context = getContext(device);
     cl::Program program = loadProgram(device, context, true);
     cl::CommandQueue queue(context, device);
 
+    //create buffers for dictionary (remains the same for all passwords)
     cl::Buffer dictB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)* lp1 * dict.size(), dictC);
+    //buffer for expected crypt output from password file
     cl::Buffer cryptedB = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(char) * (cryptedLen + 1));
+    //output buffer to which the kernel can write the plaintext it has found
     cl::Buffer resultB = cl::Buffer(context, CL_MEM_WRITE_ONLY, sizeof(char) * lp1);
 
     auto kernel = cl::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer>(program, "crypt_multiple");
     //ranges: global offset, global (global number of work items), local (number of work items per work group)
+    //we create as many work items as there are words in the dictionary * mutations of those words
     cl::EnqueueArgs eargs(queue, cl::NullRange, cl::NDRange(mutations * dict.size()), cl::NullRange);
 
 #ifdef DEBUG
     timeval startKernel = startTiming();
 #endif
+
+    //loop over the passwords
     for (Password p : toCrack)
     {
+        //empty result array
         char resultC[passwordLen + 1] = "";
+        //copy the expected crypt output to char array
         char cryptedC[cryptedLen + 1];
         p.password.copy(cryptedC, cryptedLen);
 
+        //write arrays to device memory
         queue.enqueueWriteBuffer(cryptedB, CL_TRUE, 0, sizeof(char) * (cryptedLen + 1), cryptedC);
         queue.enqueueWriteBuffer(resultB, CL_TRUE, 0, sizeof(char) * lp1, resultC);
+        //launch kernel
         kernel(eargs, cryptedB, dictB, resultB).wait();
+        //read result
         queue.enqueueReadBuffer(resultB, CL_TRUE, 0, sizeof(char) * lp1, resultC);
 
+        //if result is not empty any more, we have found a plaintext password
         if (strlen(resultC) > 0)
         {
             string plaintext = resultC;

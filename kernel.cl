@@ -1,3 +1,7 @@
+//reuse a crypt implementation found online -> only altered to use opencl address space qualifiers
+//custom kernel code is at the bottom (crypt_multiple)
+
+
 //
 // crypt.c
 //
@@ -352,6 +356,15 @@ void crypt_r(char *key, __constant char *salt, char *buf) {
   if (buf[1] == 0) buf[1] = buf[0];
 }
 
+
+
+
+
+
+
+
+//some string helper functions
+
 unsigned int strlen(char *str)
 {
     const char *s;
@@ -381,7 +394,13 @@ bool strcmp(__constant char *one, char *two) {
     return eq;
 }
 
+//ASCII code of numbers to append
 __constant char appendix[] = {48, 49, 50, 51, 52, 53, 54, 55, 56, 57};
+
+
+//each work item uses a dictionary entry and appends either 0-9 or nothing depending on its global id
+//this was not done using work-groups, as there is no real benefit other than them accessing the same dictionary word,
+//and the penalty would be unused processing elements
 
 __kernel void crypt_multiple(__constant char *crypted, __constant char *dict, __global char *result) {
     //id / 11 = which dict word to use
