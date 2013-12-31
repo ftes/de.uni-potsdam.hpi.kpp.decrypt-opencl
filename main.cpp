@@ -158,28 +158,41 @@ void crack()
 
 int main(int argc, char* argv[])
 {
-    char dict[9] = "Osten";
-    char crypted[14] = "EBCi4DBY9TjUk";
-    char result[100] = "";
+    const int l = 9;
+    const int mutations = 11;
+    const int dictSize = 3;
+    const int resultSize = 100;
+    const int cryptedSize = 14;
+    char dict[l*dictSize];
+    string a2 = "Osten";
+    string a1 = "jflsakjdfslkjfsak";
+    string a3 = "12345678";
+
+    a1.copy(dict, l-1);
+    a2.copy(dict+l*1, l-1);
+    a3.copy(dict+l*2, l-1);
+
+    char crypted[cryptedSize] = "EBCi4DBY9TjUk";
+    char result[resultSize] = "";
 
     cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_GPU);
     cl::Context context = getContext(device);
     cl::Program program = loadProgram(device, context, false);
     cl::CommandQueue queue(context, device);
 
-    cl::Buffer dictB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*9, dict);
-    cl::Buffer cryptedB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*14, crypted);
-    cl::Buffer resultB = cl::Buffer(context, CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*100, result);
+    cl::Buffer dictB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*l*dictSize, dict);
+    cl::Buffer cryptedB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*cryptedSize, crypted);
+    cl::Buffer resultB = cl::Buffer(context, CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*resultSize, result);
 
     auto kernel = cl::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer>(program, "crypt_multiple");
     //ranges: global offset, global (global number of work items), local (number of work items per work group)
-    cl::EnqueueArgs eargs(queue, cl::NullRange, cl::NDRange(11), cl::NullRange);
+    cl::EnqueueArgs eargs(queue, cl::NullRange, cl::NDRange(mutations*dictSize), cl::NullRange);
 
     timeval start = startTiming();
     kernel(eargs, cryptedB, dictB, resultB).wait();
     outputElapsedSec("Kernel", start);
 
-    queue.enqueueReadBuffer(resultB, CL_TRUE, 0, sizeof(char)*100, result);
+    queue.enqueueReadBuffer(resultB, CL_TRUE, 0, sizeof(char)*resultSize, result);
 
     if (strlen(result) > 0)
         cout << "Found: " << result << "\n";
