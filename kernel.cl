@@ -391,7 +391,7 @@ __kernel void crypt_multiple(__constant char *crypted, __constant char *dict, __
 
     //get the correct dictionary word to check
     char word[8];
-    strcpy(dict + wordIndex, word, 8);
+    strcpy(dict + wordIndex * 9, word, 8);
     char cryptResult[13];
 
     //append an additional number, depending on the appendIndex
@@ -411,7 +411,7 @@ __kernel void crypt_multiple(__constant char *crypted, __constant char *dict, __
     //if we have found the password, copy it to the result -> this can only happen once, no sync necessary
     if (found) {
         //for some reason, the content of the initial variable word is "lost" -> build it again
-        strcpy(dict + wordIndex, word, 8);
+        strcpy(dict + wordIndex * 9, word, 8);
         if (appendIndex != 10) {
             word[len-1] = appendix[appendIndex];
             word[len] = 0;
