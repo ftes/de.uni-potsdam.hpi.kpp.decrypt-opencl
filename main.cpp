@@ -57,9 +57,9 @@ vector<string> parseDict(string fileName)
     }
     file.close();
 
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("Dropped %d words, because first 8 chars identical\n", dropped);
-    #endif
+#endif
 
     return result;
 }
@@ -104,6 +104,10 @@ void writeOutput()
 
 int main(int argc, char* argv[])
 {
+#ifdef DEBUG
+    timeval start = startTiming();
+#endif // DEBUG
+
     string pwFile = string(argv[1]);
     string dictFile = string(argv[2]);
 
@@ -118,7 +122,7 @@ int main(int argc, char* argv[])
 
     cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_GPU);
     cl::Context context = getContext(device);
-    cl::Program program = loadProgram(device, context, false);
+    cl::Program program = loadProgram(device, context, true);
     cl::CommandQueue queue(context, device);
 
     cl::Buffer dictB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)* lp1 * dict.size(), dictC);
@@ -129,7 +133,11 @@ int main(int argc, char* argv[])
     //ranges: global offset, global (global number of work items), local (number of work items per work group)
     cl::EnqueueArgs eargs(queue, cl::NullRange, cl::NDRange(mutations * dict.size()), cl::NullRange);
 
-    for (Password p : toCrack) {
+#ifdef DEBUG
+    timeval startKernel = startTiming();
+#endif
+    for (Password p : toCrack)
+    {
         char resultC[passwordLen + 1] = "";
         char cryptedC[cryptedLen + 1];
         p.password.copy(cryptedC, cryptedLen);
@@ -139,11 +147,12 @@ int main(int argc, char* argv[])
         kernel(eargs, cryptedB, dictB, resultB).wait();
         queue.enqueueReadBuffer(resultB, CL_TRUE, 0, sizeof(char) * lp1, resultC);
 
-        if (strlen(resultC) > 0) {
+        if (strlen(resultC) > 0)
+        {
             string plaintext = resultC;
-            #ifdef DEBUG
+#ifdef DEBUG
             printf("Found password for %s: %s\n", p.user.c_str(), resultC);
-            #endif // DEBUG
+#endif // DEBUG
 
             Password newP;
             newP.user = p.user;
@@ -151,8 +160,15 @@ int main(int argc, char* argv[])
             cracked.push_back(newP);
         }
     }
+#ifdef DEBUG
+    outputElapsedSec("Kernel", startKernel);
+#endif
 
     writeOutput();
+
+#ifdef DEBUG
+    outputElapsedSec("Overall", start);
+#endif
 
     exit(0);
 }
