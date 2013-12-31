@@ -120,7 +120,7 @@ int main(int argc, char* argv[])
     for (int i=0; i<dict.size(); i++)
         dict[i].copy(dictC + lp1 * i, passwordLen);
 
-    cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_GPU);
+    cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_CPU);
     cl::Context context = getContext(device);
     cl::Program program = loadProgram(device, context, true);
     cl::CommandQueue queue(context, device);
