@@ -304,7 +304,7 @@ static void encrypt_r(struct sched *sp, char *block, int edflag) {
   for (j = 0; j < 64; j++) block[j] = L[FP[j] - 1];
 }
 
-__kernel void crypt_r(__constant char *key, __constant char *salt, __global char *buf) {
+void crypt_r(char *key, __constant char *salt, char *buf) {
   int i, j, c;
   int temp;
   char block[66];
@@ -350,4 +350,73 @@ __kernel void crypt_r(__constant char *key, __constant char *salt, __global char
   }
   buf[i + 2] = 0;
   if (buf[1] == 0) buf[1] = buf[0];
+}
+
+unsigned int strlen(char *str)
+{
+    const char *s;
+    for (s = str; *s; ++s);
+    return(s - str);
+}
+
+void strcpy(__constant char *from, char *to, int len) {
+    for (int i=0; i<len; i++) {
+        to[i] = from[i];
+    }
+    to[len] = 0;
+}
+
+void strcpy2(char *from, __global char *to, int len) {
+    for (int i=0; i<len; i++) {
+        to[i] = from[i];
+    }
+    to[len] = 0;
+}
+
+bool strcmp(__constant char *one, char *two) {
+    bool eq = true;
+    for (int i=2; i<13; i++) {
+        if (one[i] != two[i]) eq = false;
+    }
+    return eq;
+}
+
+__constant char appendix[] = {48, 49, 50, 51, 52, 53, 54, 55, 56, 57};
+
+__kernel void crypt_multiple(__constant char *crypted, __constant char *dict, __global char *result) {
+    //id / 11 = which dict word to use
+    //id % 11 = what to append (0-9 or nothing)
+    int wordIndex = get_global_id(0) / 11;
+    int appendIndex = get_global_id(0) % 11;
+
+    //get the correct dictionary word to check
+    char word[8];
+    strcpy(dict + wordIndex, word, 8);
+    char cryptResult[13];
+
+    //append an additional number, depending on the appendIndex
+    int len = strlen(word);
+    //if word has length 8 already, only check version without appendix
+    if (len == 8 && appendIndex != 10) return;
+    if (appendIndex != 10) {
+        word[len] = appendix[appendIndex];
+        word[len+1] = 0;
+        len++;
+    }
+
+    //crypt the dictionary word and compare it to the crypted version from the password file
+    crypt_r(word, crypted, cryptResult);
+    bool found = strcmp(crypted, cryptResult);
+
+    //if we have found the password, copy it to the result -> this can only happen once, no sync necessary
+    if (found) {
+        //for some reason, the content of the initial variable word is "lost" -> build it again
+        strcpy(dict + wordIndex, word, 8);
+        if (appendIndex != 10) {
+            word[len-1] = appendix[appendIndex];
+            word[len] = 0;
+        }
+
+        strcpy2(word, result, len);
+    }
 }

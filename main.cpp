@@ -8,6 +8,7 @@ use threadsafe crypt_r instead of crypt
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <string.h>
 #include <sstream>
 #include <vector>
 
@@ -157,32 +158,31 @@ void crack()
 
 int main(int argc, char* argv[])
 {
-    string salt = "EB";
-    char *saltP = (char*) salt.c_str();
-    string password = "Osten3";
-    char *passwordP = (char*) password.c_str();
+    char dict[9] = "Osten";
+    char crypted[14] = "EBCi4DBY9TjUk";
+    char result[100] = "";
 
     cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_GPU);
     cl::Context context = getContext(device);
     cl::Program program = loadProgram(device, context, false);
     cl::CommandQueue queue(context, device);
 
-    cl::Buffer resultB = cl::Buffer(context, CL_MEM_WRITE_ONLY, sizeof(char)*13);
+    cl::Buffer dictB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*9, dict);
+    cl::Buffer cryptedB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*14, crypted);
+    cl::Buffer resultB = cl::Buffer(context, CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*100, result);
 
-    cl::Buffer saltB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*salt.length(), saltP);
-    cl::Buffer passwordB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*password.length(), passwordP);
-
-    auto kernel = cl::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer>(program, "crypt_r");
-    cl::EnqueueArgs eargs(queue,cl::NullRange,cl::NDRange(1), cl::NullRange);
+    auto kernel = cl::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer>(program, "crypt_multiple");
+    //ranges: global offset, global (global number of work items), local (number of work items per work group)
+    cl::EnqueueArgs eargs(queue, cl::NullRange, cl::NDRange(11), cl::NullRange);
 
     timeval start = startTiming();
-    kernel(eargs, passwordB, saltB, resultB).wait();
+    kernel(eargs, cryptedB, dictB, resultB).wait();
     outputElapsedSec("Kernel", start);
 
-    char result[13];
-    queue.enqueueReadBuffer(resultB, CL_TRUE, 0, sizeof(char)*13, result);
+    queue.enqueueReadBuffer(resultB, CL_TRUE, 0, sizeof(char)*100, result);
 
-    cout << result << "\n";
+    if (strlen(result) > 0)
+        cout << "Found: " << result << "\n";
 
     //cout << buffer << "\n";
 
