@@ -88,16 +88,27 @@ vector<cl::Device> getDevices(cl::Platform platform, cl_device_type deviceType =
     return all_devices;
 }
 
+void printDeviceName(cl::Device device) {
+    #ifdef DEBUG
+    string deviceName = device.getInfo<CL_DEVICE_NAME>();
+    cout << "Using device: " << deviceName.c_str() << "\n";
+    #endif
+}
+
 cl::Device findFirstDeviceOfType(cl_device_type deviceType)
 {
     vector<cl::Device> all_devices;
     for (cl::Platform platform : getPlatforms())
     {
-        if (platform.getDevices(deviceType, &all_devices) == CL_SUCCESS)
+        if (platform.getDevices(deviceType, &all_devices) == CL_SUCCESS) {
+            printDeviceName(all_devices[0]);
             return all_devices[0];
+        }
     }
     cout << "Preferred device type not found!\n";
-    return getDevices(getPlatforms()[0])[0];
+    cl::Device device = getDevices(getPlatforms()[0])[0];
+    printDeviceName(device);
+    return device;
 }
 
 cl::Context getContext(cl::Device device)
