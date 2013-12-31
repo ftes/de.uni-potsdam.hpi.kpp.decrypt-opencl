@@ -18,14 +18,16 @@ use threadsafe crypt_r instead of crypt
 
 using namespace std;
 
+const int passwordLen = 8;
+const int mutations = 11;
+const int cryptedLen = 13;
+
 struct Password
 {
     string user;
     string salt;
     string password;
 };
-
-const unsigned int NUMBER_OF_CHARS_CRYPT = 8;
 
 vector<string> dict;
 vector<Password> toCrack;
@@ -45,7 +47,7 @@ vector<string> parseDict(string fileName)
     {
         if (line[line.size() - 1] == '\r')
             line.resize(line.size() - 1);
-        string cropped = line.substr(0, NUMBER_OF_CHARS_CRYPT);
+        string cropped = line.substr(0, passwordLen);
         if (cropped != lastAcceptedWord)
         {
             lastAcceptedWord = cropped;
@@ -96,126 +98,61 @@ void writeOutput()
 
     output.close();
 }
-/*
-bool cryptAndTestR(string inFile, string salt, string plainText, crypt_data *data)
-{
-    string expected(crypt_r(plainText.c_str(), salt.c_str(), data));
-    return expected == inFile;
-}
 
-string testWordCryptR(string word, Password p, crypt_data *data)
-{
-    if (cryptAndTestR(p.password, p.salt, word, data))
-    {
-        return word;
-    }
 
-    //only build further words, if we are not at max relevant length of word already
-    if (word.length() < NUMBER_OF_CHARS_CRYPT)
-    {
-        for (int j=0; j<10; j++)
-        {
-            string wordJ = word + to_string(j);
-            if (cryptAndTestR(p.password, p.salt, wordJ, data))
-            {
-                return wordJ;
-            }
-        }
-    }
-    return "";
-}
 
-void crack()
-{
-    struct crypt_data data;
-    #pragma omp parallel for private(data)
-    for (unsigned int i=0; i<toCrack.size(); i++)
-    {
-        data.initialized = 0;
-        string plaintext = "";
-        bool found = false;
-        for (unsigned int j=0; j<dict.size(); j++)
-        {
-            if (found) continue;
-            plaintext = testWordCryptR(dict[j], toCrack[i], &data);
-            if (!plaintext.empty())
-            {
-                #ifdef DEBUG
-                printf("Found password for %s: %s\n", toCrack[i].user.c_str(), plaintext.c_str());
-                #endif // DEBUG
-
-                #pragma omp atomic write
-                found = true;
-                Password newP;
-                newP.user = toCrack[i].user;
-                newP.password = plaintext;
-                #pragma omp critical(cracked)
-                cracked.push_back(newP);
-            }
-        }
-    }
-}*/
 
 int main(int argc, char* argv[])
 {
-    const int l = 9;
-    const int mutations = 11;
-    const int dictSize = 3;
-    const int resultSize = 100;
-    const int cryptedSize = 14;
-    char dict[l*dictSize];
-    string a2 = "Osten";
-    string a1 = "jflsakjdfslkjfsak";
-    string a3 = "12345678";
+    string pwFile = string(argv[1]);
+    string dictFile = string(argv[2]);
 
-    a1.copy(dict, l-1);
-    a2.copy(dict+l*1, l-1);
-    a3.copy(dict+l*2, l-1);
+    dict = parseDict(dictFile);
+    toCrack = parsePasswords(pwFile);
 
-    char crypted[cryptedSize] = "EBCi4DBY9TjUk";
-    char result[resultSize] = "";
+    int lp1 = passwordLen + 1;
+
+    char dictC[lp1 * dict.size()];
+    for (int i=0; i<dict.size(); i++)
+        dict[i].copy(dictC + lp1 * i, passwordLen);
 
     cl::Device device = findFirstDeviceOfType(CL_DEVICE_TYPE_GPU);
     cl::Context context = getContext(device);
     cl::Program program = loadProgram(device, context, false);
     cl::CommandQueue queue(context, device);
 
-    cl::Buffer dictB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*l*dictSize, dict);
-    cl::Buffer cryptedB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*cryptedSize, crypted);
-    cl::Buffer resultB = cl::Buffer(context, CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)*resultSize, result);
+    cl::Buffer dictB = cl::Buffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, sizeof(char)* lp1 * dict.size(), dictC);
+    cl::Buffer cryptedB = cl::Buffer(context, CL_MEM_READ_ONLY, sizeof(char) * (cryptedLen + 1));
+    cl::Buffer resultB = cl::Buffer(context, CL_MEM_WRITE_ONLY, sizeof(char) * lp1);
 
     auto kernel = cl::make_kernel<cl::Buffer, cl::Buffer, cl::Buffer>(program, "crypt_multiple");
     //ranges: global offset, global (global number of work items), local (number of work items per work group)
-    cl::EnqueueArgs eargs(queue, cl::NullRange, cl::NDRange(mutations*dictSize), cl::NullRange);
+    cl::EnqueueArgs eargs(queue, cl::NullRange, cl::NDRange(mutations * dict.size()), cl::NullRange);
 
-    timeval start = startTiming();
-    kernel(eargs, cryptedB, dictB, resultB).wait();
-    outputElapsedSec("Kernel", start);
+    for (Password p : toCrack) {
+        char resultC[passwordLen + 1] = "";
+        char cryptedC[cryptedLen + 1];
+        p.password.copy(cryptedC, cryptedLen);
 
-    queue.enqueueReadBuffer(resultB, CL_TRUE, 0, sizeof(char)*resultSize, result);
+        queue.enqueueWriteBuffer(cryptedB, CL_TRUE, 0, sizeof(char) * (cryptedLen + 1), cryptedC);
+        queue.enqueueWriteBuffer(resultB, CL_TRUE, 0, sizeof(char) * lp1, resultC);
+        kernel(eargs, cryptedB, dictB, resultB).wait();
+        queue.enqueueReadBuffer(resultB, CL_TRUE, 0, sizeof(char) * lp1, resultC);
 
-    if (strlen(result) > 0)
-        cout << "Found: " << result << "\n";
+        if (strlen(resultC) > 0) {
+            string plaintext = resultC;
+            #ifdef DEBUG
+            printf("Found password for %s: %s\n", p.user.c_str(), resultC);
+            #endif // DEBUG
 
-    //cout << buffer << "\n";
-
-    /*string pwFile = string(argv[1]);
-    string dictFile = string(argv[2]);
-
-    dict = parseDict(dictFile);
-    toCrack = parsePasswords(pwFile);
-
-    #ifdef DEBUG
-    double start = omp_get_wtime();
-    #endif
-
-    crack();
-
-    #ifdef DEBUG
-    printf("Runtime: %f\n", omp_get_wtime() - start);
-    #endif // DEBUG
+            Password newP;
+            newP.user = p.user;
+            newP.password = plaintext;
+            cracked.push_back(newP);
+        }
+    }
 
     writeOutput();
 
-    exit(0);*/
+    exit(0);
 }
